@@ -1809,7 +1809,6 @@ static int sprdwl_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 	enum sm_state old_state = vif->sm_state;
 	int is_wep = (sme->crypto.cipher_group == WLAN_CIPHER_SUITE_WEP40) ||
 		(sme->crypto.cipher_group == WLAN_CIPHER_SUITE_WEP104);
-	int random_mac_flag;
 	int ret = -EPERM;
 
 	/*workround for bug 795430*/
@@ -1819,15 +1818,14 @@ static int sprdwl_cfg80211_connect(struct wiphy *wiphy, struct net_device *ndev,
 		goto err;
 	}
 
-	if (vif->mode == SPRDWL_MODE_STATION) {
-		if (vif->has_rand_mac) {
-			 random_mac_flag = SPRDWL_CONNECT_RANDOM_ADDR;
-			 ret = wlan_cmd_set_rand_mac(vif->priv, vif->ctx_id,
-						   random_mac_flag, vif->random_mac);
-			 if (ret)
-				 netdev_info(ndev, "Set random mac failed!\n");
-		}
-	}
+	/*
+	 * MAINLINE / vendor-parity: do NOT push a random MAC on the connect
+	 * path. The factory uwe5621 vendor binary (sprdwl_ng / uwe5621_wifi_sdio)
+	 * never calls wlan_cmd_set_rand_mac() inside connect; issuing it here
+	 * makes the UWE5621DS firmware assert during association (cmd-rsp
+	 * timeout cascade), which is exactly the "scan works, connect fails"
+	 * symptom. Matching the vendor (no rand-mac in connect) removes it.
+	 */
 
 	memset(&con, 0, sizeof(con));
 

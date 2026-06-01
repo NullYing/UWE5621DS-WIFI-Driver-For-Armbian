@@ -23,7 +23,15 @@
 #include <linux/pm_wakeup.h>
 
 #define SPRDWL_VALID_CONFIG		(0x80)
-#define  CMD_WAIT_TIMEOUT		(3000)
+/*
+ * MAINLINE: on this meson-g12a SDIO port the CP stalls for a few seconds
+ * during early bring-up/calibration and flushes a backlog of cmd responses
+ * at once. The responses DO arrive, but the stock 3s wait expires ~ms before
+ * they land (observed: get_cp2_version rsp at +3.004s, SET_IE similar), which
+ * fires sprdwl_atcmd_assert -> mdbg_assert_interface -> CP carddump and kills
+ * the chip. Widen the window so a late-but-present response is accepted.
+ */
+#define  CMD_WAIT_TIMEOUT		(8000)
 #define CMD_DISCONNECT_TIMEOUT		(5500)
 /* Set scan timeout to 9s due to split scan
  * to several period in CP2

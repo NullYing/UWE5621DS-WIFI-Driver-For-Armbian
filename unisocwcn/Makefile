@@ -238,6 +238,10 @@ ccflags-y += -DCONFIG_BT_WAKE_HOST_EN
 #ccflags-y += -DCONFIG_MEM_PD
 #ccflags-y += -DCONFIG_SDIO_TX_ADMA_MODE
 #ccflags-y += -DCONFIG_SDIO_RX_ADMA_MODE
+# MAINLINE: keep INBAND IRQ (chip stays stable / IRQ handshake maintained), but
+# sdiohal_rx_down() also wakes on a short timeout as a fallback poll, so a cmd
+# response whose inband IRQ was dropped by meson-gx-mmc is still drained.
+# (Pure RX_POLLING continuously reads the FIFO and asserts the CP at boot.)
 ccflags-y += -DCONFIG_SDIO_INBAND_INT
 ccflags-y += -DCONFIG_CUSTOMIZE_SDIO_IRQ_TYPE=2
 #ccflags-y += -DCONFIG_SDIO_INBAND_POLLING

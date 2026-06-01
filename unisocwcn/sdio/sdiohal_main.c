@@ -262,7 +262,16 @@ int sdiohal_sdio_pt_write(unsigned char *src, unsigned int datalen)
 	sdio_release_host(p_data->sdio_func[FUNC_1]);
 	if (ret != 0) {
 		sdiohal_success_trans_pac_num();
-		sdiohal_abort();
+		/*
+		 * MAINLINE FIX (meson-gx-mmc): do NOT sdiohal_abort() on a single
+		 * transient CMD53 write error. The stock code (matching vendor)
+		 * aborts here, which sets card_dump_flag and tears the whole chip
+		 * down (every later op returns -ENODEV) -- a single sporadic
+		 * meson-gx-mmc data timeout would thus kill the link. The tx path
+		 * (sdiohal_send -> sdiohal_send_try) already retries on a non-zero
+		 * return, so just propagate the error and let it retry.
+		 */
+		sdiohal_err("pt_write fail ret:%d (non-fatal, will retry)\n", ret);
 	}
 	sdiohal_op_leave();
 	sdiohal_card_unlock(p_data);
@@ -304,8 +313,20 @@ int sdiohal_sdio_pt_read(unsigned char *src, unsigned int datalen)
 	ret = sdio_readsb(p_data->sdio_func[FUNC_1], src,
 		SDIOHAL_PK_MODE_ADDR, datalen);
 	sdio_release_host(p_data->sdio_func[FUNC_1]);
-	if (ret != 0)
-		sdiohal_abort();
+	if (ret != 0) {
+		/*
+		 * MAINLINE FIX (meson-gx-mmc): do NOT sdiohal_abort() on a single
+		 * transient CMD53 read error. This is the confirmed root cause of
+		 * the ~3s post-bring-up carddump: a speculative poll read (when the
+		 * CP has no data pending) or a sporadic meson-gx-mmc data timeout
+		 * returns -110/-84 here; the stock code (matching vendor) then
+		 * aborts, sets card_dump_flag and tears the chip down so every
+		 * subsequent read returns -ENODEV in a tight loop. The rx thread
+		 * already handles a failed read by skipping it and re-arming the
+		 * IRQ, so just propagate the error and keep the chip alive.
+		 */
+		sdiohal_err("pt_read fail ret:%d (non-fatal, skip)\n", ret);
+	}
 	sdiohal_op_leave();
 	sdiohal_card_unlock(p_data);
 
@@ -1480,6 +1501,31 @@ static void sdiohal_irq_handler_data(struct sdio_func *func)
 
 	sdiohal_lock_rx_ws();
 	sdiohal_rx_up();
+}
+
+/*
+ * MAINLINE inband-IRQ safety net: software replacement for a missed DAT1
+ * SDIO interrupt. The meson-gx-mmc host does not reliably deliver the
+ * inband SDIO interrupt, so the rx thread's bounded wait calls this on
+ * timeout to read+clear the card's CCCR INTx pending register (the same
+ * ack the real handler does). This releases the CP's rx credit so the
+ * pending packet becomes readable and the following pt_read drains it.
+ */
+void sdiohal_inband_int_ack(void)
+{
+	struct sdiohal_data_t *p_data = sdiohal_get_data();
+	int err = 0;
+
+	if (p_data->irq_type != SDIOHAL_RX_INBAND_IRQ)
+		return;
+	if (!WCN_CARD_EXIST(&p_data->xmit_cnt))
+		return;
+	if (!p_data->sdio_func[FUNC_0])
+		return;
+
+	sdio_claim_host(p_data->sdio_func[FUNC_0]);
+	sdio_f0_readb(p_data->sdio_func[FUNC_0], SDIO_CCCR_INTx, &err);
+	sdio_release_host(p_data->sdio_func[FUNC_0]);
 }
 
 static int sdiohal_suspend(struct device *dev)

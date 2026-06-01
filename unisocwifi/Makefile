@@ -30,7 +30,14 @@ ccflags-y += -DWMMAC_WFA_CERTIFICATION
 ccflags-y += -DCOMPAT_SAMPILE_CODE
 ccflags-y += -DRND_MAC_SUPPORT
 #ccflags-y += -DSOFTAP_HOOK
-ccflags-y += -DATCMD_ASSERT
+# MAINLINE: do NOT host-assert/carddump the CP on a cmd rsp timeout. On this
+# meson-g12a SDIO port the CP intermittently stalls for several seconds and
+# flushes its cmd-rsp backlog late; the stock behaviour carddumps the chip on
+# the first timeout (mdbg_assert_interface) and kills wifi permanently. Late
+# responses are matched by mstime+cmd_id (cmdevt.c sprdwl_rx_rsp_process) so a
+# stale rsp can never complete the wrong cmd -- making the timeout non-fatal is
+# safe and lets the chip ride through transient stalls / retry.
+#ccflags-y += -DATCMD_ASSERT
 ccflags-y += -DTCPACK_DELAY_SUPPORT
 #ccflags-y += -DDFS_MASTER
 #ccflags-y += -DRX_NAPI

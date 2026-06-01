@@ -3224,19 +3224,21 @@ int sprdwl_fw_power_down_ack(struct sprdwl_priv *priv, u8 ctx_id)
 		tx_num += num;
 	}
 
-	if (tx_num > 0 ||
-		!list_empty(&tx_msg->xmit_msg_list.to_send_list) ||
-		!list_empty(&tx_msg->xmit_msg_list.to_free_list)) {
-		if (intf->fw_power_down == 1)
-			goto err;
-		p->value = 0;
-		intf->fw_power_down = 0;
-		intf->fw_awake = 1;
-	} else {
-		p->value = 1;
-		intf->fw_power_down = 1;
-		intf->fw_awake = 0;
-	}
+	/*
+	 * MAINLINE FIX: never let the firmware power down. The CP can only be
+	 * woken from a fw-initiated power-down via the OOB sdio_pub_int
+	 * (bt/wl_wake_host) GPIO, which is not wired/functional on this
+	 * mainline meson-g12a port (see §20/§21 + slp_mgr.c). The stock driver
+	 * (matching vendor uwe5621_wifi_sdio) replies value=1 when idle, which
+	 * tells the CP it may deep-sleep; on this board it then never comes
+	 * back, so ~30s after bring-up every following SCAN/SET_IE cmd times
+	 * out (CP silently unresponsive). Always deny the power-down request
+	 * (value=0, keep awake) instead. This is the WiFi-layer counterpart of
+	 * the slp_mgr "never sleep" fix.
+	 */
+	p->value = 0;
+	intf->fw_power_down = 0;
+	intf->fw_awake = 1;
 	wl_info("%s, value=%d, fw_pwr_down=%d, fw_awake=%d, %d, %d, %d, %d\n",
 		__func__,
 		p->value,
@@ -3258,10 +3260,6 @@ int sprdwl_fw_power_down_ack(struct sprdwl_priv *priv, u8 ctx_id)
 		wl_err("host send data cmd failed, ret=%d\n", ret);
 
 	return ret;
-err:
-	wl_err("%s donot ack FW_PWR_DOWN twice\n", __func__);
-	sprdwl_intf_free_msg_buf(priv, msg);
-	return -1;
 }
 
 void sprdwl_event_fw_power_down(struct sprdwl_vif *vif, u8 *data, u16 len)

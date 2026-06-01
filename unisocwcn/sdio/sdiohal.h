@@ -404,6 +404,7 @@ void sdiohal_tx_down(void);
 void sdiohal_tx_up(void);
 void sdiohal_rx_down(void);
 void sdiohal_rx_up(void);
+void sdiohal_inband_int_ack(void);
 int sdiohal_tx_thread(void *data);
 int sdiohal_rx_thread(void *data);
 

@@ -169,8 +169,20 @@ void sdiohal_rx_down(void)
 {
 	struct sdiohal_data_t *p_data = sdiohal_get_data();
 
-	/* wait_for_completion may cause hung_task_timeout_secs
-	 * with message of task blocked for more than 120 seconds.
+	/*
+	 * MAINLINE: block until a real inband IRQ signals data is ready.
+	 *
+	 * A previous attempt bounded this with a 100ms timeout and did a
+	 * speculative read on timeout (to recover from a possibly-dropped
+	 * meson-gx-mmc SDIO func IRQ). That turned out to be harmful: a
+	 * speculative CMD53 read of MAX_PAC_SIZE when the CP has no data
+	 * pending times out in the controller (-110) and, worse, correlates
+	 * with the CP going permanently silent ~2s after bring-up (every
+	 * subsequent read then -110s and all SCAN cmds time out). The
+	 * known-good baseline (stable multi-AP scans across cold boots) uses a
+	 * plain blocking wait driven purely by the IRQ, together with the
+	 * force_drain read_again loop in sdiohal_rx_thread() which empties the
+	 * FIFO within a single IRQ so we do not depend on a per-packet IRQ.
 	 */
 	wait_for_completion_interruptible(&p_data->rx_completed);
 }
