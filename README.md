@@ -1,5 +1,7 @@
 # UWE5621DS / UWE5622 WiFi 驱动 — Amlogic mainline 移植版
 
+***经过AI多轮迭代和测试，该驱动目前在连接wifi上还有问题，详细原因请参考 wifi-driver-build.md 部分驱动文件已经传到Release***
+ 
 把 Unisoc(展锐) **UWE5621DS / UWE5622** SDIO WiFi+BT 芯片的厂商驱动移植到 **mainline Linux 内核**（`meson-gx-mmc` 主控），并修复了在主线内核上 cmd 响应丢失、`wlan0` 无法注册的问题。
 
 目标平台：**魔百盒 UNT431A**（Amlogic **S905L3A**，UWE5621DS 模组），运行 [ophub/amlogic-s9xxx-armbian](https://github.com/ophub/amlogic-s9xxx-armbian) 的 mainline 内核。驱动本身与 SoC 无强耦合，理论上可移植到其它跑 mainline `meson-gx-mmc` 的 Amlogic 板子。
